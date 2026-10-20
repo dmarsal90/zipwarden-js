@@ -1,6 +1,6 @@
 {
   "name": "zipwarden",
-  "version": "0.0.0",
+  "version": "0.1.0-alpha.0",
   "description": "Safe ZIP reading and extraction for Node.js: protects against zip slip, zip bombs and symlink tricks.",
   "keywords": [
     "zip",

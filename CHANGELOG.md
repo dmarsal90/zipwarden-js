@@ -6,6 +6,10 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.1.0-alpha.0] - 2026-10-20
+
+Name reservation. Scaffold only: `extract()` is not implemented, do not use this version.
+
 ### Added
 
 - Project scaffold: option types, error codes and a `ZipWarden` class with
