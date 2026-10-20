@@ -1,0 +1,8 @@
+node_modules/
+dist/
+coverage/
+*.tgz
+.idea/
+.vscode/
+.DS_Store
+.env

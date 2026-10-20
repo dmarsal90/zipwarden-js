@@ -1,0 +1,70 @@
+{
+  "name": "zipwarden",
+  "version": "0.0.0",
+  "description": "Safe ZIP reading and extraction for Node.js: protects against zip slip, zip bombs and symlink tricks.",
+  "keywords": [
+    "zip",
+    "security",
+    "zip-slip",
+    "zip-bomb",
+    "extraction",
+    "archive",
+    "unzip"
+  ],
+  "homepage": "https://github.com/dmarsal90/zipwarden-js#readme",
+  "bugs": "https://github.com/dmarsal90/zipwarden-js/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dmarsal90/zipwarden-js.git"
+  },
+  "license": "MIT",
+  "author": "David Marsal <david.marsal@motorflash.com>",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "docs/SPEC.md"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "pnpm@12.11.2",
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint . && prettier --check .",
+    "format": "prettier --write ."
+  },
+  "//": "TODO: confirm the npm package name (zipwarden) before publishing.",
+  "dependencies": {
+    "yauzl": "^3.4.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "@types/node": "^20.19.43",
+    "@types/yauzl": "^3.4.0",
+    "eslint": "^9.39.5",
+    "prettier": "^3.9.10",
+    "tsup": "^8.5.1",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.72.0",
+    "vitest": "^4.1.12"
+  }
+}
