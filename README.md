@@ -1,12 +1,14 @@
 # ZipWarden for Node.js
 
+[![npm](https://img.shields.io/npm/v/zipwarden/alpha?label=npm)](https://www.npmjs.com/package/zipwarden)
+
 Safe ZIP reading and extraction. ZipWarden opens untrusted archives without
 letting them write outside the target directory or exhaust your disk, memory
 or CPU.
 
 > **Status: in development.** Only the project structure, the specification and
 > pending tests exist. The extraction logic is not implemented yet, so do not
-> use this package to handle untrusted files. Nothing here is published.
+> use this package to handle untrusted files. The alpha on npm is a placeholder for the structure only.
 
 ## What it will do
 
