@@ -29,7 +29,7 @@ pnpm add zipwarden
 # or: npm install zipwarden
 ```
 
-Requires Node.js 20 or newer. The package name is provisional.
+Requires Node.js 20+. Tested on 20 and 22. ESM and CommonJS.
 <!-- TODO: confirm the npm package name before publishing. -->
 
 ## Planned usage (draft API)
