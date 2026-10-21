@@ -52,7 +52,6 @@
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write ."
   },
-  "//": "TODO: confirm the npm package name (zipwarden) before publishing.",
   "dependencies": {
     "yauzl": "^3.4.0"
   },
