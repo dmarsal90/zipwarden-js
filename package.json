@@ -18,7 +18,7 @@
     "url": "git+https://github.com/dmarsal90/zipwarden-js.git"
   },
   "license": "MIT",
-  "author": "David Marsal <david.marsal@motorflash.com>",
+  "author": "David Marsal Ivars <davidmarsalivars@gmail.com>",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
