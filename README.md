@@ -6,10 +6,9 @@ Safe ZIP reading and extraction. ZipWarden opens untrusted archives without
 letting them write outside the target directory or exhaust your disk, memory
 or CPU.
 
-> **Status: alpha, in development.** Pre-scan, streaming extraction and nested
-> archive checks are implemented and tested, but the API may still change and
-> the package has not been published with this logic yet. The `0.1.0-alpha.0`
-> on npm is a placeholder: do not use it to handle untrusted files.
+> **Status: alpha.** Pre-scan, streaming extraction and nested archive checks
+> are implemented and tested, but the API may still change. `0.1.0-alpha.0`
+> on npm is a placeholder without extraction logic: use `0.1.0-alpha.1` or later.
 
 ## What it does
 
