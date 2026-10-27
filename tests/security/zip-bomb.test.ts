@@ -52,8 +52,36 @@ describe('zip-bomb', () => {
     }
   });
 
-  // Fixture: nested-bomb
-  it.skip('shares the total size budget across nesting levels when nesting is allowed', () => {
-    // pending: nested archive inspection is not implemented yet
+  it('still catches the bomb inside a nested archive when nesting is allowed', async () => {
+    const { paths, cleanup } = await createMaliciousZips();
+    try {
+      await withWorkDir(async (dir) => {
+        const warden = new ZipWarden({ limits: { maxNestingDepth: 1 } });
+
+        expect(await codeOf(warden.extract(paths['nested-bomb'], join(dir, 'out')))).toBe(
+          ErrorCode.RatioExceeded,
+        );
+        expect(await readdir(dir)).toEqual([]);
+      });
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('shares the total size budget across nesting levels when nesting is allowed', async () => {
+    const { paths, cleanup } = await createMaliciousZips();
+    try {
+      await withWorkDir(async (dir) => {
+        const warden = new ZipWarden({
+          limits: { maxNestingDepth: 1, maxRatio: 1e9, maxTotalUncompressedSize: 1024 * 1024 },
+        });
+
+        expect(await codeOf(warden.extract(paths['nested-bomb'], join(dir, 'out')))).toBe(
+          ErrorCode.TotalSizeExceeded,
+        );
+      });
+    } finally {
+      await cleanup();
+    }
   });
 });
