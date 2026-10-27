@@ -1,13 +1,15 @@
 import { createWriteStream } from 'node:fs';
-import { chmod, lstat, mkdir, realpath, type FileHandle } from 'node:fs/promises';
+import { chmod, lstat, mkdir, mkdtemp, realpath, rm, type FileHandle } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { join, sep } from 'node:path';
-import { Readable, Transform } from 'node:stream';
+import { Readable, Transform, Writable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { crc32, createInflateRaw } from 'node:zlib';
 import { readAt } from './central-directory.js';
 import { ErrorCode, ZipWardenError } from './errors.js';
 import type { Limits } from './limits.js';
-import { RATIO_MIN_BYTES, type ScannedEntry } from './scanner.js';
+import { openArchive, RATIO_MIN_BYTES, scanArchive, type ScannedEntry } from './scanner.js';
+import type { Policy } from './policy.js';
 
 /**
  * Streams the scanned entries into a fresh directory. One instance per
@@ -28,14 +30,23 @@ export function toZipWardenError(error: unknown): ZipWardenError {
   return new ZipWardenError(ErrorCode.IoError);
 }
 
+interface Archive {
+  handle: FileHandle;
+  size: number;
+}
+
 export class Extraction {
   private readonly deadline: number;
   private total = 0;
+  private entryCount = 0;
+  /** Archive levels below the top one that are being inspected. */
+  private depth = 0;
   private readonly files: string[] = [];
 
   /** @param root Existing, empty directory (resolved) that only this extraction writes to. */
   constructor(
     private readonly limits: Limits,
+    private readonly policy: Policy,
     private readonly root: string,
     private readonly handle: FileHandle,
     private readonly fileSize: number,
@@ -44,6 +55,7 @@ export class Extraction {
   }
 
   async run(entries: ScannedEntry[]): Promise<string[]> {
+    this.countEntries(entries);
     for (const entry of entries) {
       this.checkTime();
       if (entry.isDirectory) await this.ensureDirectory(entry.path);
@@ -58,35 +70,97 @@ export class Extraction {
       slash === -1 ? this.root : await this.ensureDirectory(entry.path.slice(0, slash));
     const target = join(directory, entry.path.slice(slash + 1));
 
-    const input = await this.openData(entry);
     // Exclusive creation: fails on any existing file or link, never follows one.
     const output = createWriteStream(target, { flags: 'wx', mode: 0o644 });
+    const isZip = await this.copy({ handle: this.handle, size: this.fileSize }, entry, output);
+
+    await chmod(target, 0o644);
+    if (isZip) await this.inspect(target);
+    this.files.push(entry.path);
+  }
+
+  /**
+   * Checks an archive nested inside the one being extracted, with the same limits
+   * and the shared totals. Its content is counted but not written anywhere.
+   */
+  private async inspect(path: string): Promise<void> {
+    const archive = await openArchive(path, this.limits);
+    this.depth++;
+
+    try {
+      const entries = await scanArchive(archive.handle, archive.size, this.limits, this.policy);
+      this.countEntries(entries);
+
+      for (const entry of entries) {
+        this.checkTime();
+        if (!entry.isDirectory) await this.inspectEntry(archive, entry);
+      }
+    } finally {
+      this.depth--;
+      await archive.handle.close();
+    }
+  }
+
+  private async inspectEntry(archive: Archive, entry: ScannedEntry): Promise<void> {
+    // A scratch file is only needed when this entry may itself be a nested archive.
+    if (this.depth >= this.limits.maxNestingDepth) {
+      await this.copy(
+        archive,
+        entry,
+        new Writable({
+          write: (_chunk, _encoding, done) => {
+            done();
+          },
+        }),
+      );
+      return;
+    }
+
+    const scratch = await mkdtemp(join(tmpdir(), 'zipwarden-nested-'));
+    try {
+      const path = join(scratch, 'entry.zip');
+      const isZip = await this.copy(archive, entry, createWriteStream(path, { flags: 'wx' }));
+      if (isZip) await this.inspect(path);
+    } finally {
+      await rm(scratch, { recursive: true, force: true });
+    }
+  }
+
+  /** Entries of every level count against the same maxEntries. */
+  private countEntries(entries: ScannedEntry[]): void {
+    this.entryCount += entries.length;
+    if (this.entryCount > this.limits.maxEntries)
+      throw new ZipWardenError(ErrorCode.TooManyEntries);
+  }
+
+  /** Stream one entry through the counters into `output`. Returns whether it is itself a ZIP. */
+  private async copy(archive: Archive, entry: ScannedEntry, output: Writable): Promise<boolean> {
+    const input = await this.openData(archive, entry);
+    const meter = this.meter(entry);
     const stages: (NodeJS.ReadableStream | NodeJS.ReadWriteStream | NodeJS.WritableStream)[] = [
       input,
     ];
     if (entry.method === METHOD_DEFLATE) stages.push(createInflateRaw());
-    stages.push(this.meter(entry), output);
+    stages.push(meter.stream, output);
 
     await pipeline(stages);
-    await chmod(target, 0o644);
-    this.files.push(entry.path);
+    return meter.isZip();
   }
 
   /** Check the local header against the central directory and return the compressed bytes. */
-  private async openData(entry: ScannedEntry): Promise<Readable> {
-    const header = await readAt(this.handle, entry.offset, LOCAL_HEADER_SIZE);
+  private async openData({ handle, size }: Archive, entry: ScannedEntry): Promise<Readable> {
+    const header = await readAt(handle, entry.offset, LOCAL_HEADER_SIZE);
     if (header.readUInt32LE(0) !== SIG_LOCAL) throw new ZipWardenError(ErrorCode.InvalidArchive);
 
     const nameLength = header.readUInt16LE(26);
     const extraLength = header.readUInt16LE(28);
-    const name = await readAt(this.handle, entry.offset + LOCAL_HEADER_SIZE, nameLength);
+    const name = await readAt(handle, entry.offset + LOCAL_HEADER_SIZE, nameLength);
     if (!name.equals(entry.nameBytes)) throw new ZipWardenError(ErrorCode.InvalidArchive);
 
     const start = entry.offset + LOCAL_HEADER_SIZE + nameLength + extraLength;
-    if (start + entry.compressedSize > this.fileSize)
-      throw new ZipWardenError(ErrorCode.InvalidArchive);
+    if (start + entry.compressedSize > size) throw new ZipWardenError(ErrorCode.InvalidArchive);
     if (entry.compressedSize === 0) return Readable.from([]);
-    return this.handle.createReadStream({
+    return handle.createReadStream({
       start,
       end: start + entry.compressedSize - 1,
       autoClose: false,
@@ -97,20 +171,22 @@ export class Extraction {
    * Counts the bytes actually produced; the sizes in the headers are not trusted.
    * Every limit is checked before the chunk is written, so the output never passes it.
    */
-  private meter(entry: ScannedEntry): Transform {
+  private meter(entry: ScannedEntry): { stream: Transform; isZip: () => boolean } {
     let produced = 0;
     let crc = 0;
     let head = Buffer.alloc(0);
+    let isZip = false;
 
-    return new Transform({
+    const stream = new Transform({
       transform: (chunk: Buffer, _encoding, callback) => {
         try {
           this.checkTime();
           produced += chunk.length;
           this.total += chunk.length;
 
-          if (produced > this.limits.maxEntrySize)
+          if (produced > this.limits.maxEntrySize) {
             throw new ZipWardenError(ErrorCode.EntrySizeExceeded);
+          }
           if (this.total > this.limits.maxTotalUncompressedSize) {
             throw new ZipWardenError(ErrorCode.TotalSizeExceeded);
           }
@@ -124,7 +200,8 @@ export class Extraction {
 
           if (head.length < 4) {
             head = Buffer.concat([head, chunk.subarray(0, 4 - head.length)]);
-            if (head.length === 4 && isZipSignature(head) && this.limits.maxNestingDepth <= 0) {
+            isZip = head.length === 4 && isZipSignature(head);
+            if (isZip && this.depth >= this.limits.maxNestingDepth) {
               throw new ZipWardenError(ErrorCode.NestedArchive);
             }
           }
@@ -143,6 +220,8 @@ export class Extraction {
         }
       },
     });
+
+    return { stream, isZip: () => isZip };
   }
 
   /**

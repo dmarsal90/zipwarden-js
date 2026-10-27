@@ -33,9 +33,13 @@ export class ZipWarden {
           : await createStagingDirectory(destination);
 
       try {
-        const files = await new Extraction(this.limits, await realpath(work), handle, size).run(
-          entries,
-        );
+        const files = await new Extraction(
+          this.limits,
+          this.policy,
+          await realpath(work),
+          handle,
+          size,
+        ).run(entries);
 
         if (final !== undefined) {
           // shortcut: renaming over the empty destination replaces the directory itself, so its owner and group are lost (the mode is kept) and POSIX rename semantics are required; revisit for Windows.
