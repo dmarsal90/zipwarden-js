@@ -6,6 +6,10 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.1.0-alpha.1] - 2026-10-27
+
+First alpha with working extraction. The API may still change.
+
 ### Added
 
 - Archive pre-scan: central directory parsing, path guard, entry type, size
@@ -13,6 +17,10 @@ All notable changes to this project are documented here. The format follows
 - Streaming extraction into a staging directory, with byte counting, CRC-32
   and ratio checks, and cleanup on failure.
 - Nested archive validation sharing the same limits (`maxNestingDepth`).
+
+### Removed
+
+- The unused `yauzl` dependency. The package has no runtime dependencies.
 
 ## [0.1.0-alpha.0] - 2026-10-20
 
