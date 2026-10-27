@@ -19,6 +19,8 @@ export interface Entry {
   declaredSize?: number;
   /** Defaults to true. */
   deflate?: boolean;
+  /** General purpose bit flags. */
+  flags?: number;
 }
 
 export function buildZip(entries: Entry[]): Buffer {
@@ -37,7 +39,7 @@ export function buildZip(entries: Entry[]): Buffer {
     const local = Buffer.alloc(30);
     local.writeUInt32LE(0x04034b50, 0);
     local.writeUInt16LE(20, 4); // version needed
-    local.writeUInt16LE(0, 6); // flags
+    local.writeUInt16LE(entry.flags ?? 0, 6);
     local.writeUInt16LE(method, 8);
     local.writeUInt16LE(0, 10); // time
     local.writeUInt16LE(33, 12); // date: 1980-01-01
@@ -51,7 +53,7 @@ export function buildZip(entries: Entry[]): Buffer {
     header.writeUInt32LE(0x02014b50, 0);
     header.writeUInt16LE((3 << 8) | 20, 4); // made by: Unix
     header.writeUInt16LE(20, 6);
-    header.writeUInt16LE(0, 8);
+    header.writeUInt16LE(entry.flags ?? 0, 8);
     header.writeUInt16LE(method, 10);
     header.writeUInt16LE(0, 12);
     header.writeUInt16LE(33, 14);
