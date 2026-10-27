@@ -2,11 +2,12 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ErrorCode, ZipWardenError } from '../src/errors.js';
+import { ErrorCode } from '../src/errors.js';
 import { DEFAULT_LIMITS, type Limits } from '../src/limits.js';
 import { DEFAULT_POLICY, type Policy } from '../src/policy.js';
 import { scan } from '../src/scanner.js';
 import { buildZip, type Entry } from './helpers/malicious-zips.js';
+import { codeOf } from './helpers/support.js';
 
 const FIFO = 0o010644;
 const SOCKET = 0o140644;
@@ -33,16 +34,6 @@ async function scanBytes(
 
 const scanEntries = (entries: Entry[], limits?: Partial<Limits>, policy?: Partial<Policy>) =>
   scanBytes(buildZip(entries), limits, policy);
-
-async function codeOf(promise: Promise<unknown>): Promise<string | undefined> {
-  try {
-    await promise;
-  } catch (error) {
-    if (error instanceof ZipWardenError) return error.code;
-    throw error;
-  }
-  return undefined;
-}
 
 const file = (name: string, data: Buffer | string = 'x', extra: Partial<Entry> = {}): Entry => ({
   name,

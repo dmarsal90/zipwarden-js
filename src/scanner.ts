@@ -1,4 +1,4 @@
-import { open, stat } from 'node:fs/promises';
+import { open, type FileHandle } from 'node:fs/promises';
 import { readCentralDirectory } from './central-directory.js';
 import { ErrorCode, ZipWardenError } from './errors.js';
 import type { Limits } from './limits.js';
@@ -17,6 +17,8 @@ const DIRECTORY = 0o040000;
 const SYMLINK = 0o120000;
 const FLAG_ENCRYPTED = 0x1;
 const FLAG_STRONG_ENCRYPTION = 0x40;
+const METHOD_STORED = 0;
+const METHOD_DEFLATE = 8;
 
 /** The ratio check only applies to entries that produce more than this. */
 export const RATIO_MIN_BYTES = 1024 * 1024;
@@ -29,8 +31,11 @@ export interface ScannedEntry {
   size: number;
   compressedSize: number;
   crc: number;
+  method: number;
   /** Offset of the local header. */
   offset: number;
+  /** Raw name from the central directory, to compare with the local header. */
+  nameBytes: Buffer;
 }
 
 function checkType(versionMadeBy: number, flags: number, externalAttributes: number): void {
@@ -52,29 +57,36 @@ function checkSizes(size: number, compressedSize: number, limits: Limits): void 
   }
 }
 
-/** Reject the whole archive on the first violation, in central-directory order. */
-export async function scan(
+/** Open the archive and check its size. Callers close the handle. */
+export async function openArchive(
   zipPath: string,
   limits: Limits,
-  policy: Policy,
-): Promise<ScannedEntry[]> {
-  let size: number;
-  try {
-    const info = await stat(zipPath);
-    if (!info.isFile()) throw new ZipWardenError(ErrorCode.IoError);
-    size = info.size;
-  } catch (error) {
-    throw error instanceof ZipWardenError ? error : new ZipWardenError(ErrorCode.IoError);
-  }
-  if (size > limits.maxArchiveSize) throw new ZipWardenError(ErrorCode.ArchiveTooLarge);
-
-  let handle;
+): Promise<{ handle: FileHandle; size: number }> {
+  let handle: FileHandle;
   try {
     handle = await open(zipPath, 'r');
   } catch {
     throw new ZipWardenError(ErrorCode.IoError);
   }
 
+  try {
+    const info = await handle.stat();
+    if (!info.isFile()) throw new ZipWardenError(ErrorCode.IoError);
+    if (info.size > limits.maxArchiveSize) throw new ZipWardenError(ErrorCode.ArchiveTooLarge);
+    return { handle, size: info.size };
+  } catch (error) {
+    await handle.close();
+    throw error instanceof ZipWardenError ? error : new ZipWardenError(ErrorCode.IoError);
+  }
+}
+
+/** Reject the whole archive on the first violation, in central-directory order. */
+export async function scanArchive(
+  handle: FileHandle,
+  size: number,
+  limits: Limits,
+  policy: Policy,
+): Promise<ScannedEntry[]> {
   try {
     const raw = await readCentralDirectory(handle, size, limits.maxEntries);
     const entries: ScannedEntry[] = [];
@@ -92,6 +104,10 @@ export async function scan(
       if (!isDirectory) {
         if (!allowsPath(policy, path)) throw new ZipWardenError(ErrorCode.ExtensionNotAllowed);
         checkSizes(entry.size, entry.compressedSize, limits);
+        // shortcut: only stored and deflate entries are read; other methods are rejected, revisit if real archives need them.
+        if (entry.method !== METHOD_STORED && entry.method !== METHOD_DEFLATE) {
+          throw new ZipWardenError(ErrorCode.UnsupportedFeature, 'Unsupported compression method.');
+        }
       }
 
       entries.push({
@@ -101,14 +117,27 @@ export async function scan(
         size: entry.size,
         compressedSize: entry.compressedSize,
         crc: entry.crc,
+        method: entry.method,
         offset: entry.offset,
+        nameBytes: entry.name,
       });
     });
 
     return entries;
   } catch (error) {
-    if (error instanceof ZipWardenError) throw error;
-    throw new ZipWardenError(ErrorCode.IoError);
+    throw error instanceof ZipWardenError ? error : new ZipWardenError(ErrorCode.IoError);
+  }
+}
+
+/** Pre-scan only: validates an archive without extracting anything. */
+export async function scan(
+  zipPath: string,
+  limits: Limits,
+  policy: Policy,
+): Promise<ScannedEntry[]> {
+  const { handle, size } = await openArchive(zipPath, limits);
+  try {
+    return await scanArchive(handle, size, limits, policy);
   } finally {
     await handle.close();
   }

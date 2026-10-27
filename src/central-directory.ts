@@ -20,6 +20,8 @@ export interface RawEntry {
   name: Buffer;
   /** General purpose bit flags. */
   flags: number;
+  /** Compression method. */
+  method: number;
   versionMadeBy: number;
   externalAttributes: number;
   crc: number;
@@ -31,7 +33,11 @@ export interface RawEntry {
 
 const invalid = (): ZipWardenError => new ZipWardenError(ErrorCode.InvalidArchive);
 
-async function readAt(handle: FileHandle, position: number, length: number): Promise<Buffer> {
+export async function readAt(
+  handle: FileHandle,
+  position: number,
+  length: number,
+): Promise<Buffer> {
   const buffer = Buffer.alloc(length);
   const { bytesRead } = await handle.read(buffer, 0, length, position);
   if (bytesRead !== length) throw invalid();
@@ -163,6 +169,7 @@ export async function readCentralDirectory(
       name: directory.subarray(nameStart, extraStart),
       versionMadeBy: directory.readUInt16LE(position + 4),
       flags: directory.readUInt16LE(position + 8),
+      method: directory.readUInt16LE(position + 10),
       crc: directory.readUInt32LE(position + 16),
       compressedSize: directory.readUInt32LE(position + 20),
       size: directory.readUInt32LE(position + 24),

@@ -42,7 +42,7 @@
   ],
   "sideEffects": false,
   "engines": {
-    "node": ">=20"
+    "node": ">=20.15"
   },
   "packageManager": "pnpm@12.11.2",
   "scripts": {
