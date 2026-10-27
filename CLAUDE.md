@@ -5,8 +5,8 @@ protection) for Node.js. Behaviour is defined in `docs/SPEC.md`, which is
 identical to the one in the `zipwarden-php` sibling project. Change both
 together.
 
-Status: scaffold only. Extraction logic is not implemented. `yauzl` is
-installed for the future reader and is not used yet.
+Status: alpha. Pre-scan, streaming extraction and nested-archive validation
+are implemented (`src/`). Not yet published with this logic.
 
 ## Commands
 

@@ -6,11 +6,12 @@ Safe ZIP reading and extraction. ZipWarden opens untrusted archives without
 letting them write outside the target directory or exhaust your disk, memory
 or CPU.
 
-> **Status: in development.** Only the project structure, the specification and
-> pending tests exist. The extraction logic is not implemented yet, so do not
-> use this package to handle untrusted files. The alpha on npm is a placeholder for the structure only.
+> **Status: alpha, in development.** Pre-scan, streaming extraction and nested
+> archive checks are implemented and tested, but the API may still change and
+> the package has not been published with this logic yet. The `0.1.0-alpha.0`
+> on npm is a placeholder: do not use it to handle untrusted files.
 
-## What it will do
+## What it does
 
 - Reject zip slip: `../` segments, absolute paths, symbolic links and NUL bytes
   in names.
@@ -24,7 +25,7 @@ The exact behaviour, default limits and error codes are in
 [docs/SPEC.md](docs/SPEC.md). The [PHP package](https://github.com/dmarsal90/zipwarden-php)
 follows the same specification.
 
-## Planned installation
+## Installation
 
 ```bash
 pnpm add zipwarden
@@ -32,11 +33,10 @@ pnpm add zipwarden
 ```
 
 Requires Node.js 20+. Tested on 20 and 22. ESM and CommonJS.
-<!-- TODO: confirm the npm package name before publishing. -->
 
-## Planned usage (draft API)
+## Usage
 
-This API is a proposal and may change.
+The API is not stable yet and may change before 0.1.0.
 
 ```ts
 import { ZipWarden, ZipWardenError, ErrorCode } from 'zipwarden';
@@ -62,7 +62,7 @@ CommonJS works too: `const { ZipWarden } = require('zipwarden');`
 
 ## Threats covered
 
-| Threat               | Example                            | Planned defence                                                   | Error code              |
+| Threat               | Example                            | Defence                                                           | Error code              |
 | -------------------- | ---------------------------------- | ----------------------------------------------------------------- | ----------------------- |
 | Zip slip             | `../../etc/cron.d/x`               | Reject `..`; check the resolved path stays inside the destination | `PATH_TRAVERSAL`        |
 | Absolute path        | `/var/www/shell.js`                | Reject leading `/`, `\` and drive prefixes                        | `ABSOLUTE_PATH`         |
@@ -85,9 +85,6 @@ pnpm lint        # ESLint + Prettier check; pnpm format fixes
 pnpm typecheck   # tsc --noEmit
 pnpm build       # tsup -> dist (ESM, CJS, types)
 ```
-
-The planned ZIP reader is [yauzl](https://github.com/thejoshwolfe/yauzl), which
-is installed but not used yet.
 
 ## License
 
