@@ -21,6 +21,8 @@ export interface Entry {
   deflate?: boolean;
   /** General purpose bit flags. */
   flags?: number;
+  /** CRC-32 written in the headers when it should differ from the real one. */
+  crc?: number;
 }
 
 export function buildZip(entries: Entry[]): Buffer {
@@ -32,7 +34,7 @@ export function buildZip(entries: Entry[]): Buffer {
     const deflate = entry.deflate ?? true;
     const payload = deflate ? deflateRawSync(entry.data) : entry.data;
     const method = deflate ? 8 : 0;
-    const crc = crc32(entry.data);
+    const crc = entry.crc ?? crc32(entry.data);
     const size = entry.declaredSize ?? entry.data.length;
     const name = Buffer.from(entry.name, 'utf8');
 
